@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn, cat
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, activation):
@@ -60,5 +60,72 @@ class Model_torch(nn.Module):
         out = self.fc2(out)
         out = nn.functional.softmax(out, dim=1)
         return out
+
+class SimpleModel(nn.Module):
+    def __init__(self, activation='softplus', classes=8):
+        super(SimpleModel, self).__init__()
+
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3)
+        self.activation = nn.ELU()
+        self.depthwise_conv1 = nn.Conv2d(32, 32, kernel_size=3, groups=32, padding=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=1)
+        self.pool1 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv3 = nn.Conv2d(64, 32, kernel_size=3)
+        self.depthwise_conv2 = nn.Conv2d(32, 32, kernel_size=3, groups=32, padding=1)
+        self.conv4 = nn.Conv2d(64, 64, kernel_size=1)
+        self.pool2 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv5 = nn.Conv2d(64, 64, kernel_size=3)
+        self.depthwise_conv3 = nn.Conv2d(64, 64, kernel_size=3, groups=64, padding=1)
+        self.conv6 = nn.Conv2d(128, 128, kernel_size=1)
+        self.pool3 = nn.MaxPool2d(kernel_size=2)
+
+        # final layers
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1)) # global average pooling layer
+        self.flatten = nn.Flatten() # flatten layer
+        self.dense1 = nn.Linear(128, 256) # fully connected layer
+        self.dropout = nn.Dropout(0.1) # dropout layer
+        self.dense2 = nn.Linear(256, classes) # output layer
+       
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.activation(x)
+        x0 = x
+        x = self.depthwise_conv1(x)
+        x = self.activation(x)
+        x = cat((x, x0), 1)
+        x = self.conv2(x)
+        x = self.pool1(x)
+
+        x = self.conv3(x)
+        x = self.activation(x)
+        x0 = x
+        x = self.depthwise_conv2(x)
+        x = self.activation(x)
+        x = cat((x, x0), 1)
+        x = self.conv4(x)
+        x = self.pool2(x)
+
+        x = self.conv5(x)
+        x = self.activation(x)
+        x0 = x
+        x = self.depthwise_conv3(x)
+        x = self.activation(x)
+        x = cat((x, x0), 1)
+        x = self.conv6(x)
+        x = self.pool3(x)
+
+
+
+        x = self.global_pool(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        x = self.dense2(x)
+
+        return x
 
 
