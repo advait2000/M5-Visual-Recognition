@@ -61,4 +61,3 @@ class Model_torch(nn.Module):
         out = nn.functional.softmax(out, dim=1)
         return out
 
-model = Model_torch(128, 128, 8)
