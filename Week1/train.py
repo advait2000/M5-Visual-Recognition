@@ -1,8 +1,6 @@
 # Import required packages
-
 import os
 import time
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,15 +13,15 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from imutils import paths
 
-from model import VGG16
+from Vggmodel import VGG16
 from packages import CustomTensorDataset
 from packages import config
+from resnetmodel import ResNet
 
 # Initialize the list of data (images), class labels, target bounding box coordinates, and image paths
 print("[INFO] loading dataset...")
 data = []
 labels = []
-bboxes = []
 imagePaths = []
 
 # Grab the image paths
@@ -36,7 +34,7 @@ for trainPath in paths.list_images(pathToImages):
     label = trainPath.split(os.path.sep)[-2]
     (height, width) = image.shape[:2]
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = cv2.resize(image, (224, 224))
+    image = cv2.resize(image, (config.INPUT_HEIGHT, config.INPUT_WIDTH))
 
     # Update our list of data, class labels,
     data.append(image)
@@ -79,7 +77,7 @@ trainLoader = DataLoader(trainDS, batch_size=config.BATCH_SIZE, shuffle=True,
                          pin_memory=config.PIN_MEMORY)
 testLoader = DataLoader(testDS, batch_size=config.BATCH_SIZE, pin_memory=config.PIN_MEMORY)
 
-model = VGG16().to(config.DEVICE)
+model = ResNet(num_classes=8).to(config.DEVICE)
 
 # initialize our optimizer and loss function
 opt = Adam(model.parameters(), lr=config.INIT_LR)
@@ -179,7 +177,7 @@ plt.title("Training Loss and Accuracy on Dataset")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
 plt.legend(loc="lower left")
-plt.savefig("output/plot.png")
+plt.savefig("output/plot1.png")
 
 # serialize the model to disk
-torch.save(model, "output/model.pth")
+torch.save(model, "output/model1.pth")
