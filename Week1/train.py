@@ -34,10 +34,13 @@ from imutils import paths
 
 from model_pytorch import SimpleModel
 
+from model_pytorch import DeepModel
 from packages import CustomTensorDataset
 
 from packages import config
 
+from torchsummary import summary
+import torch.nn.utils.prune as prune
 from resnetmodel import ResNet
 
 
@@ -170,6 +173,27 @@ testLoader = DataLoader(testDS, batch_size=config.BATCH_SIZE, pin_memory=config.
 
 model = SimpleModel().cuda()
 
+model = DeepModel().to(device)
+summary(model, input_size=(3, config.INPUT_WIDTH, config.INPUT_HEIGHT))
+
+parameters = (
+    (model.conv1, "weight"),
+    (model.conv2, "weight"),
+    (model.conv3, "weight"),
+    (model.conv4, "weight"),
+    (model.conv5, "weight"),
+    (model.conv6, "weight"),
+    (model.conv7, "weight"),
+    (model.conv8, "weight"),
+    (model.dense1, "weight"),
+    (model.dense2, "weight"),
+)
+prune.global_unstructured(
+    parameters,
+    pruning_method=prune.L1Unstructured,
+    amount=0.2,
+)
+summary(model, input_size=(3, config.INPUT_WIDTH, config.INPUT_HEIGHT))
 
 # initialize our optimizer and loss function
 
