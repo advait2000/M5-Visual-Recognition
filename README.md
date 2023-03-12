@@ -1,6 +1,6 @@
 # **Visual Recognition**
 
-## Group Members
+## Team 6 Members
 
 - Advait Dixit (advaitdixit99@gmail.com)
 - Albert Barreiro (albertbarreirod@gmail.com)
