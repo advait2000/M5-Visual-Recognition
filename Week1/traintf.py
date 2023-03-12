@@ -9,6 +9,7 @@ from tensorflow.keras.layers import Flatten
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import ModelCheckpoint
 from resnet_tf import ResNet
+from model_tf import build, build_deep
 
 train_data_dir = '/Users/advaitdixit/Documents/Masters/dataset/MIT_split/train'
 test_data_dir = '/Users/advaitdixit/Documents/Masters/dataset/MIT_split/test'
@@ -63,7 +64,7 @@ validation_generator = datagen.flow_from_directory(train_data_dir,
                                                    subset='validation')
 
 
-model = ResNet(num_classes=8)
+model = build(224, 224, 8, 'elu')
 opt = tf.keras.optimizers.legacy.Adam(learning_rate=0.001)
 
 # model = tf.keras.models.experimental.SharpnessAwareMinimization(model)
