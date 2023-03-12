@@ -12,7 +12,7 @@ Link will be added later
 
 ## Weekly Presentations
 
-- [Week 1 Project introduction]([https://www.slideshare.net/XXXXXXXXXXXXXXX](https://docs.google.com/presentation/d/1S9_8x5Vc7RlXTraeNL5-cWn-vbvcuax4l4FJzjlnD2A/edit?usp=sharing))
+- [Week 1 Project introduction](https://docs.google.com/presentation/d/1S9_8x5Vc7RlXTraeNL5-cWn-vbvcuax4l4FJzjlnD2A/edit?usp=sharing)
 - Week 2 Object Detection and Segmentation (1) (Link not available yet)
 - Week 3 Object Detection and Segmentation (2)] (Link not available yet)
 - Week 4 Image Retrieval (Link not available yet)
