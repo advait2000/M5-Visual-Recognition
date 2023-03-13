@@ -1,25 +1,23 @@
 # Import required packages
 import os
 import time
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from imutils import paths
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from torch.nn import CrossEntropyLoss
-from torch.optim import Adam
+from torch.optim import SGD
 from torch.utils.data import DataLoader
+from torchsummary import summary
 from torchvision import transforms
-from imutils import paths
-from model_pytorch import SimpleModel
-from model_pytorch import DeepModel
+
+from model_pytorch import DeepModel_he
 from packages import CustomTensorDataset
 from packages import config
-from torchsummary import summary
-import torch.nn.utils.prune as prune
-from resnetmodel import ResNet
-from sam import SAM
 
 """if not torch.cuda.is_available():
     print("Cuda not available")
@@ -53,7 +51,7 @@ for trainPath in paths.list_images(pathToImages):
     labels.append(label)
     imagePaths.append(trainPath)
 
-# Convert the data, class labels, bounding boxes, and image paths to NumPy arrays
+# Convert the data, class labels and image paths to NumPy arrays
 data = np.array(data, dtype="float32")
 labels = np.array(labels)
 imagePaths = np.array(imagePaths)
@@ -63,12 +61,17 @@ le = LabelEncoder()
 labels = le.fit_transform(labels)
 
 # Partition the data into training and testing splits using
-# 80% of the data for training and the remaining 20% for testing
+# 70% of the data for training and the remaining 30% for testing
 (trainImages, testImages, trainLabels, testLabels) = train_test_split(data, labels, test_size=0.30, random_state=42)
 
 # convert NumPy arrays to PyTorch tensors
 (trainImages, testImages) = torch.tensor(trainImages), torch.tensor(testImages)
 (trainLabels, testLabels) = torch.tensor(trainLabels), torch.tensor(testLabels)
+
+# initialize our data augmentation functions
+hFlip = transforms.RandomHorizontalFlip(p=0.25)
+vFlip = transforms.RandomVerticalFlip(p=0.25)
+rotate = transforms.RandomRotation(degrees=15)
 
 # define normalization transforms
 transforms = transforms.Compose([transforms.ToPILImage(), transforms.ToTensor()])
@@ -87,31 +90,11 @@ valSteps = len(testDS) // config.BATCH_SIZE
 # Create data loaders
 trainLoader = DataLoader(trainDS, batch_size=config.BATCH_SIZE, shuffle=True, pin_memory=config.PIN_MEMORY)
 testLoader = DataLoader(testDS, batch_size=config.BATCH_SIZE, pin_memory=config.PIN_MEMORY)
-model = DeepModel().to(device)
-summary(model, input_size=(3, config.INPUT_WIDTH, config.INPUT_HEIGHT))
-
-parameters = (
-    (model.conv1, "weight"),
-    (model.conv2, "weight"),
-    (model.conv3, "weight"),
-    (model.conv4, "weight"),
-    (model.conv5, "weight"),
-    (model.conv6, "weight"),
-    (model.conv7, "weight"),
-    (model.conv8, "weight"),
-    (model.dense1, "weight"),
-    (model.dense2, "weight"),
-)
-prune.global_unstructured(
-    parameters,
-    pruning_method=prune.L1Unstructured,
-    amount=0.2,
-)
+model = DeepModel_he().to(device)
 summary(model, input_size=(3, config.INPUT_WIDTH, config.INPUT_HEIGHT))
 
 # initialize our optimizer and loss function
-opt = Adam(model.parameters(), lr=config.INIT_LR)
-optimizer = SAM(model.parameters(), rho=0.05, optim=opt)
+opt = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
 lossFn = CrossEntropyLoss()
 
 # initialize a dictionary to store training history
@@ -152,11 +135,10 @@ for e in range(0, config.EPOCHS):
         # zero out the gradients, perform the backpropagation step, and update the weights
         opt.zero_grad()
         classLoss.backward()
-
         opt.step()
+
         # add the loss to the total training loss so far and
         # calculate the number of correct predictions
-
         totalTrainLoss += classLoss
         trainCorrect += (predictions.argmax(1) == labels).type(torch.float).sum().item()
 
@@ -211,7 +193,7 @@ plt.title("Loss on Dataset")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss")
 plt.legend(loc="lower left")
-plt.savefig("output/plotlossxavi.png")
+plt.savefig("output/plotlossdeepxavier.png")
 
 # plot the training loss and accuracy
 plt.style.use("ggplot")
@@ -222,7 +204,7 @@ plt.title("Accuracy on Dataset")
 plt.xlabel("Epoch #")
 plt.ylabel("Accuracy")
 plt.legend(loc="lower left")
-plt.savefig("output/plotaccxavi.png")
+plt.savefig("output/plotaccdeepxavier.png")
 
 # serialize the model to disk
-torch.save(model, "output/modelxavi.pth")
+torch.save(model, "output/modeldeepxavire.pth")
