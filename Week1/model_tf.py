@@ -54,7 +54,7 @@ def build(width, height, classes, activation):
     x = Flatten()(x)  # this converts our 3D feature maps to 1D feature vectors
     x = Dense(256, activation=activation)(x)
     x = Dropout(0.1)(x)
-    x = Dense(8, activation='softmax')(x)
+    x = Dense(classes, activation='softmax')(x)
 
     model = Model(input_tensor, x)
     return model
@@ -114,7 +114,7 @@ def build_deep(width, height, classes, activation):
     x = Flatten()(x)  # this converts our 3D feature maps to 1D feature vectors
     x = Dense(256, activation=activation)(x)
     x = Dropout(0.1)(x)
-    x = Dense(8, activation='softmax')(x)
+    x = Dense(classes, activation='softmax')(x)
 
     model = Model(input_tensor, x)
     return model

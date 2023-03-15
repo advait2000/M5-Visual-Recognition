@@ -9,7 +9,7 @@ class CustomTensorDataset(Dataset):
         self.transforms = transforms
 
     def __getitem__(self, index):
-        # Grab the image, label, and its bounding box coordinates
+        # Grab the image, label
         image = self.tensors[0][index]
         label = self.tensors[1][index]
 
