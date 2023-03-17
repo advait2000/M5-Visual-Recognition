@@ -53,6 +53,7 @@ cfg.OUTPUT_DIR = "output_week2"
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
 '''Training part using hooks'''
+cfg.MODEL.WEIGHTS = "/Users/eduard.hogea/Documents/Facultate/Erasmus/UAB_sem2/M5/M5-Visual-Recognition/output_week2/mymodelfull.pth"
 trainer = DefaultTrainer(cfg)
 
 val_loss = ValidationLoss(cfg)
@@ -73,7 +74,10 @@ Visualization
 """
 plot_losses(cfg)
 
-evaluator = COCOEvaluator("t", cfg, False, output_dir="output_week2")
+evaluator = COCOEvaluator("t", cfg, False, output_dir="output_week2") #evaluate the model with COCO metrics
+results_coco = trainer.test(cfg, trainer.model, evaluators=[evaluator]) # !! it evaliuates on the cfg test data
+with open("output_week2/evaluate.json", "w") as outfile:
+    json.dump(results_coco, outfile)
 
 predictor = DefaultPredictor(cfg)
 predictor.model.load_state_dict(trainer.model.state_dict())
