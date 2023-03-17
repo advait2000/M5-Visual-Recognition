@@ -1,4 +1,4 @@
-#task e)
+#task e) 
 
 import os
 from glob import glob
@@ -39,8 +39,8 @@ register_kitti_mots_dataset(
 
 '''Updating the config file'''
 cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml")
+cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml"))
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml")
 cfg.DATASETS.TRAIN = "k"
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 2
 cfg.DATASETS.TEST = "t"
@@ -51,11 +51,11 @@ cfg.SOLVER.MAX_ITER = 200
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 cfg.MODEL.DEVICE = "cpu"
-cfg.OUTPUT_DIR = "output_week2"
+cfg.OUTPUT_DIR = "output_week2_mask"
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
 '''Training part using hooks'''
-cfg.MODEL.WEIGHTS = "/Users/eduard.hogea/Documents/Facultate/Erasmus/UAB_sem2/M5/M5-Visual-Recognition/output_week2/mymodelfull.pth"
+#cfg.MODEL.WEIGHTS = "/Users/eduard.hogea/Documents/Facultate/Erasmus/UAB_sem2/M5/M5-Visual-Recognition/output_week2/mymodelfull_mask.pth"
 trainer = DefaultTrainer(cfg)
 
 val_loss = ValidationLoss(cfg)
@@ -68,7 +68,7 @@ print(trainer._hooks)
 trainer.resume_or_load(resume=True)
 trainer.train()
 
-torch.save(trainer.model.state_dict(), os.path.join(cfg.OUTPUT_DIR, "mymodelfull.pth"))
+torch.save(trainer.model.state_dict(), os.path.join(cfg.OUTPUT_DIR, "mymodelfull_mask.pth"))
 checkpointer = DetectionCheckpointer(trainer.model, save_dir=cfg.OUTPUT_DIR)
 
 """
@@ -76,9 +76,9 @@ Visualization
 """
 plot_losses(cfg)
 
-evaluator = COCOEvaluator("t", cfg, False, output_dir="output_week2") #evaluate the model with COCO metrics
+evaluator = COCOEvaluator("t", cfg, False, output_dir="output_week2_mask") #evaluate the model with COCO metrics
 results_coco = trainer.test(cfg, trainer.model, evaluators=[evaluator]) # !! it evaliuates on the cfg test data
-with open("output_week2/evaluate.json", "w") as outfile:
+with open("output_week2_mask/evaluate.json", "w") as outfile:
     json.dump(results_coco, outfile)
 
 predictor = DefaultPredictor(cfg)
