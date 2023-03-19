@@ -8,7 +8,7 @@
 
 ## Overleaf Article
 
-Link will be added later
+[Link] (https://www.overleaf.com/read/rkrcnxhkpkxh)
 
 ## Weekly Presentations
 
