@@ -24,11 +24,3 @@ class SiameseNet(nn.Module):
         x1 = self.fc2(x1)
         x2 = self.fc2(x2)
         return x1, x2
-
-    def get_embedding(self, x):
-        x = self.backbone(x)
-        x = x.view(x.size()[0], -1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        return x

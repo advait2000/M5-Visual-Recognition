@@ -1,13 +1,11 @@
 # Import required packages
 import time
-
 import torch
 from matplotlib import pyplot as plt
 from torch import nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 from torchvision import transforms
-
 from packages import CustomTensorDatasetSiamese
 from packages import config
 from siamese_network import SiameseNet
