@@ -1,9 +1,9 @@
-# Import required packages
 import pickle
+import faiss
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_curve, roc_curve, auc
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import label_binarize
+from tqdm import tqdm
 from average_precision import *
 
 # Load the features for the dataset and queries
@@ -23,6 +23,13 @@ with open("features/data_labels.pkl", "rb") as f:
 labels = np.asarray([x[1] for x in data_labels])
 ground_truth = np.asarray([x[1] for x in query_labels])
 
+# Build the FAISS index
+print("[INFO] Building FAISS index...")
+index = faiss.IndexFlatL2(dataset.shape[1])
+index.add(dataset.astype(np.float32))
+
+# Perform search using the index
+print("[INFO] Searching...")
 # initialize the values of k for our k-Nearest Neighbor classifier along with the
 # list of accuracies for each value of k
 kVals = range(1, 30, 2)
@@ -32,9 +39,7 @@ accuracies = []
 print("[INFO] Choosing Best K")
 for k in range(1, 30, 2):
     print("[INFO] Training: K={}".format(k))
-    knn = KNeighborsClassifier(n_neighbors=k, metric="minkowski")
-    knn = knn.fit(dataset, labels)
-    neighbors = knn.kneighbors(query_data, return_distance=False)
+    _, neighbors = index.search(query_data.astype(np.float32), k)
     predictions = []
     for i in range(len(neighbors)):
         neighbors_class = [data_labels[j][1] for j in neighbors[i]]
@@ -55,21 +60,16 @@ plt.plot(kVals, accuracies)
 # Add labels and title
 plt.xlabel("K Values")
 plt.ylabel("MaP")
-plt.title("Accuracy vs K")
+plt.title("Accuracy vs K ")
 
 # Show the plot
-plt.savefig("kplot.png")
+plt.savefig("kplotFaiss.png")
 plt.show()
 
-# Train the classifier
-print("[INFO] Training with best K")
-knn = KNeighborsClassifier(n_neighbors=kVals[i], metric="manhattan")
-knn = knn.fit(dataset, labels)
-neighbors = knn.kneighbors(query_data, return_distance=False)
-
-# Get the labels obtained by classifier
+_, neighbors = index.search(query_data.astype(np.float32), kVals[i])
+# Get the labels obtained by the index
 predictions = []
-for i in range(len(neighbors)):
+for i in tqdm(range(len(neighbors)), desc="Processing predictions"):
     neighbors_class = [data_labels[j][1] for j in neighbors[i]]
     predictions.append(neighbors_class)
 
@@ -89,7 +89,7 @@ num_classes = len(set(labels))
 binary_ground_truth = label_binarize(ground_truth, classes=range(num_classes))
 binary_predictions = []
 
-for pred in predictions:
+for pred in tqdm(predictions, desc="Converting to binary"):
     binary_pred = label_binarize(pred, classes=range(num_classes))
     binary_predictions.append(binary_pred.mean(axis=0))
 
@@ -100,13 +100,13 @@ precision, recall, _ = precision_recall_curve(binary_ground_truth.ravel(), binar
 
 # Plot precision-recall curve
 plt.figure()
-plt.plot(recall, precision, marker='.', label='KNN Classifier')
+plt.plot(recall, precision, marker='.', label='FAISS')
 plt.xlabel('Recall')
 plt.ylabel('Precision')
 plt.title('Precision-Recall Curve')
 plt.legend(loc='best')
 plt.grid()
-plt.savefig("knnroc.png")
+plt.savefig("faiss_precision_recall_curve.png")
 
 # Calculate the ROC curve and the AUC score for each class
 fpr = dict()
@@ -129,4 +129,4 @@ plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic (ROC) Curve for All Classes')
 plt.legend(loc='best')
 plt.grid()
-plt.savefig("knn_roc_curve_all_classes.png")
+plt.savefig("faiss_roc_curve_all_classes.png")

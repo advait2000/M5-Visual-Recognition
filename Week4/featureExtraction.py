@@ -106,8 +106,6 @@ umap_obj = umap.UMAP()
 umap_embedding = umap_obj.fit_transform(query_data)
 unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
 colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
-legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
-plt.legend(handles=legend_elements)
 plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=labels)
 plt.title('UMAP')
 plt.savefig("umap2d.png")
@@ -116,8 +114,6 @@ tsne_results = TSNE().fit_transform(query_data)
 plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=labels)
 unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
 colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
-legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
-plt.legend(handles=legend_elements)
 plt.title('TSNE')
 plt.savefig("tsne2d.png")
 
@@ -127,8 +123,6 @@ ax = plt.figure().add_subplot(111, projection='3d')
 ax.scatter(umap_embedding[:, 0], umap_embedding[:, 1], umap_embedding[:, 2], c=labels)
 unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
 colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
-legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
-plt.legend(handles=legend_elements)
 plt.title('UMAP')
 plt.savefig("umap3d.png")
 
@@ -137,7 +131,5 @@ ax = plt.figure().add_subplot(111, projection='3d')
 ax.scatter(tsne_results[:, 0], tsne_results[:, 1], tsne_results[:, 2], c=labels)
 unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
 colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
-legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
-plt.legend(handles=legend_elements)
 plt.title('TSNE')
 plt.savefig("tsne3d.png")

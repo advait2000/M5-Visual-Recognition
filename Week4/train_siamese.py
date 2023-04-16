@@ -6,7 +6,8 @@ import torch
 import torch.nn.functional as F
 import umap
 from matplotlib import pyplot as plt
-from sklearn.metrics import precision_recall_curve
+from sklearn.manifold import TSNE
+from sklearn.metrics import precision_recall_curve, roc_curve, auc
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import label_binarize
 from torch import nn
@@ -34,10 +35,23 @@ class ContrastiveLoss(nn.Module):
     def forward(self, output1, output2, target, size_average=True):
         distances = (output2 - output1).pow(2).sum(1)  # squared distances
         losses = 0.5 * (target.float() * distances +
-                        (1.0 - target).float() * F.relu(self.margin
-                                                        - (distances + self.eps).sqrt()).pow(2))
-        # sqrt() of a tiny number may be negative!
-        return losses.mean() if size_average else losses.sum()
+                        (1.0 - target).float() * F.relu(self.margin - (distances + self.eps).sqrt()).pow(2))
+        
+        # Separate positive and negative pairs
+        positive_pairs_loss = losses[target == 1]
+        negative_pairs_loss = losses[target == 0]
+
+        # Hard negative mining
+        num_negative_pairs = len(negative_pairs_loss)
+        if num_negative_pairs > 0:
+            top_k_negative_pairs_loss, _ = torch.topk(negative_pairs_loss,
+                                                      k=min(num_negative_pairs, int(0.5 * num_negative_pairs)))
+            negative_pairs_loss = top_k_negative_pairs_loss
+
+        # Combine positive and negative losses
+        loss = torch.cat([positive_pairs_loss, negative_pairs_loss], dim=0).mean()
+
+        return loss
 
 
 # Set the device we will be using to train the model
@@ -147,7 +161,7 @@ plt.title("Loss on Dataset")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss")
 plt.legend(loc="lower left")
-plt.savefig("loss_slidesSiamese.png")
+# plt.savefig("loss_slidesSiamese.png")
 
 # finish measuring how long training took
 endTime = time.time()
@@ -194,6 +208,7 @@ model.eval()
 # Extract features for visualization test
 features = []
 labels = []
+
 for inputs, label in query_set:
     # Pass image through network
     inputs = inputs.unsqueeze(0)
@@ -209,12 +224,37 @@ queryFeatures = features
 labels = np.array(labels)
 
 # Visualize the features using UMAP
-reducer = umap.UMAP()
-embedding = reducer.fit_transform(features)
-plt.figure()
-plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='Spectral')
-plt.savefig("test_siamese.png")
-plt.show()
+umap_obj = umap.UMAP()
+umap_embedding = umap_obj.fit_transform(queryFeatures)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=labels)
+plt.title('UMAP')
+plt.savefig("Siameseumap2d.png")
+
+tsne_results = TSNE().fit_transform(queryFeatures)
+plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('TSNE')
+plt.savefig("Siamesetsne2d.png")
+
+umap_obj = umap.UMAP(n_components=3)
+umap_embedding = umap_obj.fit_transform(queryFeatures)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(umap_embedding[:, 0], umap_embedding[:, 1], umap_embedding[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('UMAP')
+plt.savefig("Siameseumap3d.png")
+
+tsne_results = TSNE(n_components=3).fit_transform(queryFeatures)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(tsne_results[:, 0], tsne_results[:, 1], tsne_results[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('TSNE')
+plt.savefig("Siamesetsne3d.png")
 
 # Load the dataset and query labels
 with open("features/query_labels.pkl", "rb") as f:
@@ -268,3 +308,26 @@ plt.title('Precision-Recall Curve')
 plt.legend(loc='best')
 plt.grid()
 plt.savefig("Siameseroc.png")
+
+# Calculate the ROC curve and the AUC score for each class
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+
+for i in range(num_classes):
+    fpr[i], tpr[i], _ = roc_curve(binary_ground_truth[:, i], binary_predictions[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Plot the ROC curve for each class in the same figure
+plt.figure()
+
+for i in range(num_classes):
+    plt.plot(fpr[i], tpr[i], label=f'Class {i} (AUC = {roc_auc[i]:.2f})')
+
+plt.plot([0, 1], [0, 1], 'k--', label='Random')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve for All Classes')
+plt.legend(loc='best')
+plt.grid()
+plt.savefig("Siamese_roc_curve_all_classes.png")

@@ -5,7 +5,8 @@ import time
 import torch
 import umap
 from matplotlib import pyplot as plt
-from sklearn.metrics import precision_recall_curve
+from sklearn.manifold import TSNE
+from sklearn.metrics import precision_recall_curve, roc_curve, auc
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import label_binarize
 from torch import nn
@@ -61,6 +62,24 @@ opt = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
 # Define the loss function
 criterion = nn.TripletMarginLoss(margin=1.0)
 
+
+def hard_negative_mining(anchor, positive, negative, negative_ratio=0.5):
+    # Calculate the distance between anchor and all negative examples
+    all_neg_dist = (anchor - negative).pow(2).sum(-1)
+
+    # Find the hardest negative examples
+    num_negative = int(negative_ratio * positive.size(0))
+    _, top_idx = torch.topk(all_neg_dist, k=num_negative, largest=False)
+
+    # Select the hardest negative examples
+    hard_negative = negative[top_idx, :]
+
+    # Calculate the triplet loss using the hardest negative examples
+    loss = criterion(anchor, positive, hard_negative)
+
+    return loss
+
+
 # initialize a dictionary to store training history
 H = {
     "train_loss": [],
@@ -82,6 +101,10 @@ for e in range(0, config.EPOCHS):
     totalTrainLoss = 0
     totalValLoss = 0
 
+    # Initialize the total training and validation accuracy
+    totalTrainAccuracy = 0
+    totalValAccuracy = 0
+
     for (triplet, _) in trainLoader:
         # send the input to the device
         anchor, positive, negative = triplet
@@ -94,14 +117,19 @@ for e in range(0, config.EPOCHS):
         loss.backward(retain_graph=True)
         opt.step()
         totalTrainLoss += loss.item()
+        pos_dist = (anchor_embedding - positive_embedding).pow(2).sum(-1).sqrt()
+        neg_dist = (anchor_embedding - negative_embedding).pow(2).sum(-1).sqrt()
+        distances = pos_dist - neg_dist
 
-    # switch off autograd for evaluation
+        totalTrainAccuracy += torch.sum(distances < 1.0).item()
+
+    # Switch off autograd for evaluation
     with torch.no_grad():
-        # set the model in evaluation mode
+        # Set the model in evaluation mode
         model.eval()
 
         for (triplet, _) in testLoader:
-            # send the input to the device
+            # Send the input to the device
             anchor, positive, negative = triplet
             anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
 
@@ -109,16 +137,25 @@ for e in range(0, config.EPOCHS):
             anchor_embedding, positive_embedding, negative_embedding = model(anchor, positive, negative)
             loss = criterion(anchor_embedding, positive_embedding, negative_embedding)
             totalValLoss += loss.item()
+            pos_dist = (anchor_embedding - positive_embedding).pow(2).sum(-1).sqrt()
+            neg_dist = (anchor_embedding - negative_embedding).pow(2).sum(-1).sqrt()
+            distances = pos_dist - neg_dist
 
-    # calculate the average training and validation loss
+            totalValAccuracy += torch.sum(distances < 1.0).item()
+
+    # Calculate the average training and validation loss
     avgTrainLoss = totalTrainLoss / trainSteps
     avgValLoss = totalValLoss / valSteps
+    avgTrainAccuracy = totalTrainAccuracy / trainSteps
+    avgValAccuracy = totalValAccuracy / valSteps
 
-    # update our training history
+    # Update our training history
     H["train_loss"].append(avgTrainLoss)
     H["val_loss"].append(avgValLoss)
+    H["train_acc"].append(avgTrainAccuracy)
+    H["val_acc"].append(avgValAccuracy)
 
-    # print the model training and validation information
+    # Print the model training and validation information
     print("[INFO] EPOCH: {}/{}".format(e + 1, config.EPOCHS))
     print("Train loss: {:.6f}, Val Loss: {:.4f}".format(avgTrainLoss, avgValLoss))
 
@@ -132,6 +169,17 @@ plt.xlabel("Epoch #")
 plt.ylabel("Loss")
 plt.legend(loc="lower left")
 plt.savefig("losstriplet.png")
+
+# plot the training loss and accuracy
+plt.style.use("ggplot")
+plt.figure()
+plt.plot(H["train_acc"], label="train_acc")
+plt.plot(H["val_acc"], label="val_acc")
+plt.title("Loss on Dataset")
+plt.xlabel("Epoch #")
+plt.ylabel("Loss")
+plt.legend(loc="lower left")
+plt.savefig("acctriplet.png")
 
 # finish measuring how long training took
 endTime = time.time()
@@ -193,12 +241,37 @@ queryFeatures = features
 labels = np.array(labels)
 
 # Visualize the features using UMAP
-reducer = umap.UMAP()
-embedding = reducer.fit_transform(features)
-plt.figure()
-plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='Spectral')
-plt.savefig("test_triplet.png")
-plt.show()
+umap_obj = umap.UMAP()
+umap_embedding = umap_obj.fit_transform(queryFeatures)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=labels)
+plt.title('UMAP')
+plt.savefig("Tripletumap2d.png")
+
+tsne_results = TSNE().fit_transform(queryFeatures)
+plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('TSNE')
+plt.savefig("Triplettsne2d.png")
+
+umap_obj = umap.UMAP(n_components=3)
+umap_embedding = umap_obj.fit_transform(queryFeatures)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(umap_embedding[:, 0], umap_embedding[:, 1], umap_embedding[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('UMAP')
+plt.savefig("Tripletumap3d.png")
+
+tsne_results = TSNE(n_components=3).fit_transform(queryFeatures)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(tsne_results[:, 0], tsne_results[:, 1], tsne_results[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+plt.title('TSNE')
+plt.savefig("Triplettsne3d.png")
 
 # Load the dataset and query labels
 with open("features/query_labels.pkl", "rb") as f:
@@ -252,3 +325,26 @@ plt.title('Precision-Recall Curve')
 plt.legend(loc='best')
 plt.grid()
 plt.savefig("TripletRoc.png")
+
+# Calculate the ROC curve and the AUC score for each class
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+
+for i in range(num_classes):
+    fpr[i], tpr[i], _ = roc_curve(binary_ground_truth[:, i], binary_predictions[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Plot the ROC curve for each class in the same figure
+plt.figure()
+
+for i in range(num_classes):
+    plt.plot(fpr[i], tpr[i], label=f'Class {i} (AUC = {roc_auc[i]:.2f})')
+
+plt.plot([0, 1], [0, 1], 'k--', label='Random')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve for All Classes')
+plt.legend(loc='best')
+plt.grid()
+plt.savefig("Triplet_roc_curve_all_classes.png")
