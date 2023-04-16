@@ -11,6 +11,7 @@ from torchvision.datasets import ImageFolder
 from torchvision import models
 import os
 import progressbar
+from sklearn.manifold import TSNE
 
 # Initialize model
 model = models.resnet18(pretrained=True)
@@ -77,10 +78,10 @@ with open(feature_path / "dataset.npy", "wb") as f:
 umap_obj = umap.UMAP()
 umap_embedding = umap_obj.fit_transform(dataset_features)
 plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=color_4_umap)
-plt.show()
 
 color_4_umap = list()
-select_color = ['#8db6f7', '#b98df7', '#f78df2', '#f78da8', '#f7a68d', '#f7e08d', '#bff78d', '#8df7af']
+select_color = ['#8db6f7', '#b98df7', '#f78df2', '#f78da8', '#f7a68d', '#f7e08d', '#c28df7', '#8df7af']
+labels = []
 
 # Evaluation mode
 print("[INFO] Extracting features from query set...")
@@ -90,8 +91,10 @@ with torch.no_grad():
     for ii, (img, label) in enumerate(query_set):
         query_data[ii, :] = model(img.unsqueeze(0)).squeeze().numpy()
         color_4_umap.append(select_color[label])
+        labels.append(label)
         pbar.update(ii)
 
+labels = np.array(labels)
 # Save the features
 with open(feature_path / "queries.npy", "wb") as f:
     np.save(f, query_data)
@@ -101,5 +104,40 @@ pbar.finish()
 
 umap_obj = umap.UMAP()
 umap_embedding = umap_obj.fit_transform(query_data)
-plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=color_4_umap)
-plt.show()
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
+plt.legend(handles=legend_elements)
+plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=labels)
+plt.title('UMAP')
+plt.savefig("umap2d.png")
+
+tsne_results = TSNE().fit_transform(query_data)
+plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
+plt.legend(handles=legend_elements)
+plt.title('TSNE')
+plt.savefig("tsne2d.png")
+
+umap_obj = umap.UMAP(n_components=3)
+umap_embedding = umap_obj.fit_transform(query_data)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(umap_embedding[:, 0], umap_embedding[:, 1], umap_embedding[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
+plt.legend(handles=legend_elements)
+plt.title('UMAP')
+plt.savefig("umap3d.png")
+
+tsne_results = TSNE(n_components=3).fit_transform(query_data)
+ax = plt.figure().add_subplot(111, projection='3d')
+ax.scatter(tsne_results[:, 0], tsne_results[:, 1], tsne_results[:, 2], c=labels)
+unique_labels = ['coast', 'forest', 'highway', 'inside_city', 'mountain', 'opencountry', 'street', 'tallbuilding']
+colors = [plt.cm.tab10(i) for i in np.linspace(0, 1, len(unique_labels))]
+legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label, markerfacecolor=plt.cm.tab10(i), markersize=10) for i, label in zip(np.linspace(0, 1, len(unique_labels)), unique_labels)]
+plt.legend(handles=legend_elements)
+plt.title('TSNE')
+plt.savefig("tsne3d.png")
