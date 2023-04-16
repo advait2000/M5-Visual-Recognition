@@ -4,6 +4,8 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+import umap
+from matplotlib import pyplot as plt
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torchvision import models
@@ -48,14 +50,17 @@ query_data = np.empty((len(query_set), 512))
 # Initialize the progress bar
 widgets = ["Extracting Features: ", progressbar.Percentage(), " ", progressbar.Bar(), " ", progressbar.ETA()]
 pbar = progressbar.ProgressBar(maxval=len(dataset), widgets=widgets).start()
+color_4_umap = list()
+select_color = ['#8db6f7', '#b98df7', '#f78df2', '#f78da8', '#f7a68d', '#f7e08d', '#bff78d', '#8df7af']
 
 # Evaluation mode
 print("[INFO] Extracting features from dataset...")
 with torch.no_grad():
     model.eval()
     # Loop over data
-    for ii, (img, _) in enumerate(dataset):
+    for ii, (img, label) in enumerate(dataset):
         dataset_features[ii, :] = model(img.unsqueeze(0)).squeeze().numpy()
+        color_4_umap.append(select_color[label])
         pbar.update(ii)
 
 # Finish
@@ -69,13 +74,22 @@ pbar = progressbar.ProgressBar(maxval=len(query_set), widgets=widgets).start()
 with open(feature_path / "dataset.npy", "wb") as f:
     np.save(f, dataset_features)
 
+umap_obj = umap.UMAP()
+umap_embedding = umap_obj.fit_transform(dataset_features)
+plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=color_4_umap)
+plt.show()
+
+color_4_umap = list()
+select_color = ['#8db6f7', '#b98df7', '#f78df2', '#f78da8', '#f7a68d', '#f7e08d', '#bff78d', '#8df7af']
+
 # Evaluation mode
 print("[INFO] Extracting features from query set...")
 with torch.no_grad():
     model.eval()
     # Loop over query data
-    for ii, (img, _) in enumerate(query_set):
+    for ii, (img, label) in enumerate(query_set):
         query_data[ii, :] = model(img.unsqueeze(0)).squeeze().numpy()
+        color_4_umap.append(select_color[label])
         pbar.update(ii)
 
 # Save the features
@@ -84,3 +98,8 @@ with open(feature_path / "queries.npy", "wb") as f:
 
 # Finish
 pbar.finish()
+
+umap_obj = umap.UMAP()
+umap_embedding = umap_obj.fit_transform(query_data)
+plt.scatter(umap_embedding[:, 0], umap_embedding[:, 1], c=color_4_umap)
+plt.show()
