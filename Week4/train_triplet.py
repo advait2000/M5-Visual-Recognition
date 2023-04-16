@@ -1,14 +1,22 @@
 # Import required packages
+import os
+import pickle
 import time
 import torch
+import umap
 from matplotlib import pyplot as plt
+from sklearn.metrics import precision_recall_curve
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import label_binarize
 from torch import nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from torchvision.datasets import ImageFolder
 from packages import CustomTensorDatasetTripletLoss
 from packages import config
 from triplet_network import TripletNetwork
+from average_precision import *
 
 # Set the device we will be using to train the model
 device = torch.device("cpu")
@@ -128,3 +136,119 @@ plt.savefig("losstriplet.png")
 # finish measuring how long training took
 endTime = time.time()
 print("[INFO] total time taken to train the model: {:.2f}s".format(endTime - startTime))
+
+# Initialize data path and feature path
+BASE_PATH = "/Users/advaitdixit/Documents/Masters/dataset/MIT_split/"
+DATASET_PATH = os.path.sep.join([BASE_PATH, "train"])
+QUERY_PATH = os.path.sep.join([BASE_PATH, "test"])
+
+# Initialize the dataset and query set(https://pytorch.org/vision/main/generated/torchvision.datasets.ImageFolder.html)
+dataset = ImageFolder(DATASET_PATH, transform=transform)
+query_set = ImageFolder(QUERY_PATH, transform=transform)
+
+model.eval()
+# Extract features for visualization train
+featuresData = []
+labels = []
+
+# Loop over train dataset
+for inputs, label in dataset:
+    # Pass image through network
+    inputs = inputs.unsqueeze(0)
+    feature = model.resnet(inputs).detach().numpy()[0]
+
+    # Append features and labels
+    featuresData.append(feature)
+    labels.append(label)
+
+# Convert to numpy arrays
+features = np.array(featuresData).reshape(len(featuresData), -1)
+dataFeatures = features
+labels = np.array(labels)
+
+# Visualize the features using UMAP
+reducer = umap.UMAP()
+embedding = reducer.fit_transform(features)
+plt.figure()
+plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='Spectral')
+plt.savefig("train_triplet.png")
+plt.show()
+
+model.eval()
+# Extract features for visualization test
+features = []
+labels = []
+for inputs, label in query_set:
+    # Pass image through network
+    inputs = inputs.unsqueeze(0)
+    feature = model.resnet(inputs).detach().numpy()[0]
+
+    # Append features and labels
+    features.append(feature)
+    labels.append(label)
+
+# Convert to numpy arrays
+features = np.array(features).reshape(len(features), -1)
+queryFeatures = features
+labels = np.array(labels)
+
+# Visualize the features using UMAP
+reducer = umap.UMAP()
+embedding = reducer.fit_transform(features)
+plt.figure()
+plt.scatter(embedding[:, 0], embedding[:, 1], c=labels, cmap='Spectral')
+plt.savefig("test_triplet.png")
+plt.show()
+
+# Load the dataset and query labels
+with open("features/query_labels.pkl", "rb") as f:
+    query_labels = pickle.load(f)
+with open("features/data_labels.pkl", "rb") as f:
+    data_labels = pickle.load(f)
+
+# Train the classifier
+print("[INFO] Training with best K")
+knn = KNeighborsClassifier(n_neighbors=5, metric="manhattan")
+knn = knn.fit(dataFeatures, data_labels)
+neighbors = knn.kneighbors(queryFeatures, return_distance=False)
+
+# Get the labels obtained by classifier
+predictions = []
+for i in range(len(neighbors)):
+    neighbors_class = [data_labels[j][1] for j in neighbors[i]]
+    predictions.append(neighbors_class)
+
+# Evaluate the model
+print("[INFO] Evaluating..")
+ground_truth = [x[1] for x in query_labels]
+p_1 = mpk(ground_truth, predictions, 1)
+p_5 = mpk(ground_truth, predictions, 5)
+
+print('P@1=', p_1)
+print('P@5=', p_5)
+map = mAP(ground_truth, predictions)
+print('mAP=', map)
+
+# Convert ground truth and predictions to binary format
+num_classes = len(set(labels))
+binary_ground_truth = label_binarize(ground_truth, classes=range(num_classes))
+binary_predictions = []
+
+for pred in predictions:
+    binary_pred = label_binarize(pred, classes=range(num_classes))
+    binary_predictions.append(binary_pred.mean(axis=0))
+
+binary_predictions = np.array(binary_predictions)
+
+# Calculate precision-recall curve
+precision, recall, _ = precision_recall_curve(binary_ground_truth.ravel(), binary_predictions.ravel())
+
+# Plot precision-recall curve
+plt.figure()
+plt.plot(recall, precision, marker='.', label='KNN Classifier')
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.legend(loc='best')
+plt.grid()
+plt.savefig("TripletRoc.png")
