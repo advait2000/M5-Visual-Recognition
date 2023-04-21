@@ -58,7 +58,7 @@ BATCH_SIZE =32
 
 
 
-EPOCHS = 100
+EPOCHS = 60
 
 
 
@@ -67,6 +67,8 @@ VAL_SPLIT = 0.3
 
 
 PRUNE = 10
+
+PATIENCE = 10
 
 
 

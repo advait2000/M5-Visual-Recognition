@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 
 from matplotlib import pyplot as plt
 
-from torch.optim import SGD
+from torch.optim import SGD, Adam, Adagrad
 
 from torch.utils.data import DataLoader
 
@@ -124,6 +124,7 @@ model = ImageToText().to(device)
 
 opt = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
 
+#opt = Adam(model.parameters(), lr=config.INIT_LR, weight_decay=0.001)
 
 
 # Define the triplet loss function
@@ -153,6 +154,14 @@ H = {
 print("[INFO] training the network...")
 
 startTime = time.time()
+
+
+
+# Define your early stopping variables
+best_val_loss = float('inf')
+early_stop_counter = 0
+patience = config.PATIENCE # the number of epochs to wait before stopping the training process
+
 
 
 
@@ -364,9 +373,22 @@ for e in range(0, config.EPOCHS):
 
     print("Train loss: {:.6f}, Val Loss: {:.4f}".format(avgTrainLoss, avgValLoss))
 
+    # Save best model
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
+        torch.save(model,'/ghome/group06/m5/w5/weights_image_text.pth')
+        early_stop_counter = 0
+    else:
+        early_stop_counter += 1
+
+    # Check if the training process should be stopped
+    #if early_stop_counter >= patience:
+    #    print('Early stopping after {} epochs without improvement.'.format(patience))
+    #    break
 
 
-torch.save(model,'/ghome/group06/m5/w5/weights_image_text.pth')
+
+
 
 # plot the training loss and accuracy
 

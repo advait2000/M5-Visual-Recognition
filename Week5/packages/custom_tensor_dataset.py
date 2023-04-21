@@ -313,10 +313,13 @@ class CustomTensorDatasetTriplet_Image2Text(Dataset):
 
 
     def __len__(self):
+        #if self.type_data == "val":
+        #    logging.info("val: "+str(int(len(self.ImageNcaption)*0.01)))		
+        #    return int(len(self.ImageNcaption)*0.01)
 
-        logging.info(str(int(len(self.ImageNcaption)*0.001)))
+        logging.info("train: "+str(int(len(self.ImageNcaption)*0.01)))
 
-        return int(len(self.ImageNcaption)*0.001)
+        return int(len(self.ImageNcaption)*0.01)
 
 
 
