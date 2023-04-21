@@ -374,8 +374,8 @@ for e in range(0, config.EPOCHS):
     print("Train loss: {:.6f}, Val Loss: {:.4f}".format(avgTrainLoss, avgValLoss))
 
     # Save best model
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
+    if avgValLoss < best_val_loss:
+        best_val_loss = avgValLoss
         torch.save(model,'/ghome/group06/m5/w5/weights_image_text.pth')
         early_stop_counter = 0
     else:
