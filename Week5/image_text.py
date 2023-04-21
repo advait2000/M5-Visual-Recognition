@@ -1,169 +1,397 @@
 import time
 
+
+
 import torch
+
 import torch.nn as nn
+
 from torchvision.datasets import CocoCaptions
+
 import torchvision.models as models
+
 import torchvision.transforms as transforms
+
 from matplotlib import pyplot as plt
+
 from torch.optim import SGD
 
-from packages import config
+from torch.utils.data import DataLoader
+
+from sklearn import preprocessing
+
+import fasttext
+
+import numpy as np
+
+import math
+
+
+
+from packages import config 
+
+from image_text_network import ImageToText
+
+from packages.custom_tensor_dataset import CustomTensorDatasetTriplet_Image2Text
+
+import logging
+
+
+
+logging.basicConfig(level=logging.INFO)
 
 # Set the device we will be using to train the model
-device = torch.device("cpu")
+
+device = torch.device("cuda")
+
 dtype = torch.float
 
+
+
+
+
+ft_model = fasttext.load_model("/home/mcv/m5/fasttext_wiki.en.bin")
+
+
+
+# max length in train is 250
+
+seq_len = 300
+
+vocab_size = len(ft_model.get_words())
+
+embedding_dim = ft_model.get_dimension()
+
+
+
 # Define data transforms
+
 transform = transforms.Compose([
+
     transforms.Resize(224),
+
     transforms.CenterCrop(224),
+
     transforms.ToTensor(),
+
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+
 ])
 
+
+
 # https://pytorch.org/vision/main/generated/torchvision.datasets.CocoCaptions.html
+
 # Load the COCO dataset
-traindataset = CocoCaptions(root='coco/train',
-                                 annFile='coco/annotations/captions_train2014.json', transform=transform)
-testdataset = CocoCaptions(root='coco/val',
-                                annFile='coco/annotations/captions_val2014.json', transform=transform)
+
+traindataset = CustomTensorDatasetTriplet_Image2Text(root_dir='/home/mcv/datasets/COCO/train2014',
+
+                                 annFile='/home/mcv/datasets/COCO/captions_train2014.json', type_data="train", transforms=transform)
+
+testdataset = CustomTensorDatasetTriplet_Image2Text(root_dir='/home/mcv/datasets/COCO/val2014',
+
+                                annFile='/home/mcv/datasets/COCO/captions_val2014.json', type_data="val", transforms=transform)
+
+
+
+
+
+trainLoader = DataLoader(traindataset, batch_size=config.BATCH_SIZE, shuffle=True)
+
+testLoader = DataLoader(testdataset, batch_size=config.BATCH_SIZE, shuffle=True)
+
+
+
+
+
+
 
 # Calculate steps per epoch for training and validation set
-trainSteps = len(traindataset) // config.BATCH_SIZE
-valSteps = len(testdataset) // config.BATCH_SIZE
 
-# Define the ResNet-50 model
-resnet = models.resnet50(pretrained=True)
-resnet = nn.Sequential(*list(resnet.children())[:-1])
+trainSteps = math.ceil(len(trainLoader) / config.BATCH_SIZE)
 
+valSteps = math.ceil(len(testLoader) / config.BATCH_SIZE)
 
-# Define the image-to-text retrieval model
-class ImageToText(nn.Module):
-    def __init__(self, resnet):
-        super(ImageToText, self).__init__()
-        self.resnet = resnet
-        self.embedding = nn.Linear(2048, 512)
-
-    def forward(self, images, captions):
-        image_embeddings = self.resnet(images)
-        image_embeddings = image_embeddings.view(image_embeddings.size(0), -1)
-        image_embeddings = self.embedding(image_embeddings)
-
-        caption_embeddings = self.embedding(captions)
-
-        return image_embeddings, caption_embeddings
 
 
 # Create the model
-model = ImageToText(resnet).to(device)
+
+model = ImageToText().to(device)
+
+
 
 # Define the optimizer
-optimizer = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
+
+opt = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
+
+
 
 # Define the triplet loss function
+
 triplet_loss_fn = nn.TripletMarginLoss(margin=1.0)
 
+
+
 # initialize a dictionary to store training history
+
 H = {
+
     "train_loss": [],
+
     "train_acc": [],
+
     "val_loss": [],
+
     "val_acc": []
+
 }
 
+
+
 # measure how long training is going to take
+
 print("[INFO] training the network...")
+
 startTime = time.time()
 
 
-# Train the model
-for epoch in range(config.EPOCHS):
+
+# Loop over our epochs
+
+for e in range(0, config.EPOCHS):
+
+    logging.info("epoch "+str(e))
+
     # set the model in training mode
+
     model.train()
 
+
+
     # Initialize the total training and validation loss
+
     totalTrainLoss = 0
+
     totalValLoss = 0
 
-    # Initialize batches
-    train_batches = 0
 
-    for i in range(0, len(traindataset), config.BATCH_SIZE):
-        # Divide into batches
-        batch = traindataset[i:i + config.BATCH_SIZE]
-        images = torch.stack([x[0] for x in batch]).to(device)
-        captions = torch.stack([x[1] for x in batch]).to(device)
+
+    for (triplet, _) in trainLoader:
 
         # send the input to the device
-        anchor_images, positive_images, negative_images = images.chunk(3, dim=0)
-        anchor_captions, positive_captions, negative_captions = captions.chunk(3, dim=0)
 
-        # Forward + backward + optimize
-        optimizer.zero_grad()
-        anchor_image_embeddings, anchor_caption_embeddings = model(anchor_images, anchor_captions)
-        positive_image_embeddings, positive_caption_embeddings = model(positive_images, positive_captions)
-        negative_image_embeddings, negative_caption_embeddings = model(negative_images, negative_captions)
+        anchor, positive, negative = triplet
 
-        image_loss = triplet_loss_fn(anchor_image_embeddings, positive_image_embeddings, negative_image_embeddings)
-        caption_loss = triplet_loss_fn(anchor_caption_embeddings, positive_caption_embeddings, negative_caption_embeddings)
-        loss = image_loss + caption_loss
+
+
+        positive_tensors = np.zeros((anchor.size(0), 300))
+
+        for i, positive_string in enumerate(positive):
+
+            positive_words = np.array([])
+
+            input_tokens = positive_string.split()
+
+            for token in input_tokens:
+
+                if token.lower() in ft_model:
+
+                    positive_words = np.append(positive_words, ft_model[token.lower()])
+
+            positive_tensors[i] = np.mean(positive_words, axis=0)
+
+
+        #positive_tensors = np.mean(positive_tensors, axis=1)
+
+        positive_tensors = torch.from_numpy(positive_tensors)
+
+        
+
+        negative_tensors = np.zeros((anchor.size(0), 300))
+
+        for i, negative_string in enumerate(negative):
+
+            negative_words = np.array([])
+
+            input_tokens = negative_string.split()
+
+            for token in input_tokens:
+
+                if token.lower() in ft_model:
+
+                    negative_words = np.append(negative_words, ft_model[token.lower()])
+
+            negative_tensors[i] = np.mean(negative_words, axis=0)
+
+        #negative_tensors = np.mean(negative_tensors, axis=1)
+
+        negative_tensors = torch.from_numpy(negative_tensors)
+
+
+
+
+        anchor = anchor.to(device)
+
+        positive = positive_tensors.to(torch.float32).to(device)
+
+        negative = negative_tensors.to(torch.float32).to(device)
+
+
+        anchor_embedding, positive_embedding, negative_embedding = model(anchor, positive, negative)
+        #print("positive_embedding",positive_embedding)
+        #print("negative_embedding",negative_embedding)
+
+
+        loss = triplet_loss_fn(anchor_embedding, positive_embedding, negative_embedding)
+
+        opt.zero_grad()
+
         loss.backward(retain_graph=True)
-        optimizer.step()
+
+        opt.step()
 
         totalTrainLoss += loss.item()
-        train_batches += 1
 
-    # Switch off autograd for evaluation
+
+
+    # switch off autograd for evaluation
+
     with torch.no_grad():
-        # Set the model in evaluation mode
+
+        # set the model in evaluation mode
+
         model.eval()
-        test_batches = 0
-        for i in range(0, len(testdataset), config.BATCH_SIZE):
-            batch = testdataset[i:i + config.BATCH_SIZE]
-            images = torch.stack([x[0] for x in batch]).to(device)
-            captions = torch.stack([x[1] for x in batch]).to(dev)
-            anchor_images, positive_images, negative_images = images.chunk(3, dim=0)
-            anchor_captions, positive_captions, negative_captions = captions.chunk(3, dim=0)
 
-            anchor_image_embeddings, anchor_caption_embeddings = model(anchor_images, anchor_captions)
-            positive_image_embeddings, positive_caption_embeddings = model(positive_images, positive_captions)
-            negative_image_embeddings, negative_caption_embeddings = model(negative_images, negative_captions)
 
-            # calculate the triplet loss for the images
-            image_loss = triplet_loss_fn(anchor_image_embeddings, positive_image_embeddings, negative_image_embeddings)
-            # calculate the triplet loss for the captions
-            caption_loss = triplet_loss_fn(anchor_caption_embeddings, positive_caption_embeddings,
-                                           negative_caption_embeddings)
 
-            loss = image_loss + caption_loss
+        for (triplet, _) in testLoader:
+
+            # send the input to the device
+
+            anchor, positive, negative = triplet
+
+
+
+
+
+            positive_tensors = np.zeros((anchor.size(0), 300))
+
+            for i, positive_string in enumerate(positive):
+
+                positive_words = np.array([])
+
+                input_tokens = positive_string.split()
+
+                for token in input_tokens:
+
+                    if token.lower() in ft_model:
+
+                        positive_words = np.append(positive_words, ft_model[token.lower()])
+
+                positive_tensors[i] = np.mean(positive_words, axis=0)
+
+
+            #positive_tensors = np.mean(positive_tensors, axis=1)
+
+            positive_tensors = torch.from_numpy(positive_tensors)
+
+
+
+            negative_tensors = np.zeros((anchor.size(0), 300))
+
+            for i, negative_string in enumerate(negative):
+
+                negative_words = np.array([])
+
+                input_tokens = negative_string.split()
+
+                for token in input_tokens:
+
+                    if token.lower() in ft_model:
+
+                        negative_words = np.append(negative_words, ft_model[token.lower()])
+
+                negative_tensors[i] = np.mean(negative_words, axis=0)
+
+            #negative_tensors = np.mean(negative_tensors, axis=1)
+
+            negative_tensors = torch.from_numpy(negative_tensors)
+
+   
+
+
+
+            anchor = anchor.to(device)
+
+            positive = positive_tensors.to(torch.float32).to(device)
+
+            negative = negative_tensors.to(torch.float32).to(device)
+
+
+
+            # Forward + backward + optimize
+
+            anchor_embedding, positive_embedding, negative_embedding = model(anchor, positive, negative)
+            #print("positive_embedding_val",positive_embedding)
+            #print("negative_embedding_val",negative_embedding)
+
+            loss = triplet_loss_fn(anchor_embedding, positive_embedding, negative_embedding)
 
             totalValLoss += loss.item()
-            test_batches += 1
 
-    # Calculate the average training and validation loss
+
+
+    # calculate the average training and validation loss
+
     avgTrainLoss = totalTrainLoss / trainSteps
+
     avgValLoss = totalValLoss / valSteps
 
-    # Update our training history
+    logging.info("avgTrainLoss "+str(avgTrainLoss))
+    logging.info("avgValLoss "+str(avgValLoss))
+
+    # update our training history
+
     H["train_loss"].append(avgTrainLoss)
+
     H["val_loss"].append(avgValLoss)
 
-    # Print the model training and validation information
-    print("[INFO] EPOCH: {}/{}".format(epoch + 1, config.EPOCHS))
+
+
+    # print the model training and validation information
+
+    print("[INFO] EPOCH: {}/{}".format(e + 1, config.EPOCHS))
+
     print("Train loss: {:.6f}, Val Loss: {:.4f}".format(avgTrainLoss, avgValLoss))
 
+
+
+torch.save(model,'/ghome/group06/m5/w5/weights_image_text.pth')
+
 # plot the training loss and accuracy
+
 plt.style.use("ggplot")
+
 plt.figure()
+
 plt.plot(H["train_loss"], label="train_loss")
+
 plt.plot(H["val_loss"], label="val_loss")
+
 plt.title("Loss on Dataset")
+
 plt.xlabel("Epoch #")
+
 plt.ylabel("Loss")
+
 plt.legend(loc="lower left")
-plt.savefig("loss.png")
+
+plt.savefig("losstriplet.png")
+
+
 
 # finish measuring how long training took
+
 endTime = time.time()
+
 print("[INFO] total time taken to train the model: {:.2f}s".format(endTime - startTime))
