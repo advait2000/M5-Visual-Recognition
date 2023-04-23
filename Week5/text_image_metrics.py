@@ -46,6 +46,7 @@ import logging
 
 import random
 
+
 logging.basicConfig(level=logging.INFO)
 
 # Set the device we will be using to train the model
@@ -55,11 +56,10 @@ device = torch.device("cuda")
 dtype = torch.float
 
 
+
 max_it = 100
 
 max_search = 40
-
-
 
 def read_annotations(annFile, max_it):
 
@@ -127,7 +127,7 @@ transform = transforms.Compose([
 
 # Create the model
 
-model = torch.load('/ghome/group06/m5/w5/weights_image_textBaseline.pth').to(device)
+model = torch.load('/ghome/group06/m5/w5/weights_text_image300.pth').to(device)
 
 
 
@@ -171,17 +171,29 @@ with torch.no_grad():
 
         logging.info("Iteration: "+str(it))
 
-        img1name = gtImage
 
-        cero = "0"*(12-len(img1name))
 
-        name_file = "/COCO_val2014_"
+        anchor_tensors = np.zeros((1, 300))
 
-        root_dir = '/home/mcv/datasets/COCO/val2014'
+        positive_words = np.array([])
 
-        gtImagePict = Image.open(root_dir +name_file+cero+ img1name+".jpg").convert('RGB')
+        input_tokens = gtCaption.split()
 
-        anchor = transform(gtImagePict).unsqueeze(0).to(device)
+        for token in input_tokens:
+
+            if token.lower() in ft_model:
+
+                positive_words = np.append(positive_words, ft_model[token.lower()])
+
+        anchor_tensors[0] = np.mean(positive_words, axis=0)
+
+        anchor_tensors = torch.from_numpy(anchor_tensors)
+
+            
+
+        anchor = anchor_tensors.to(torch.float32).to(device)
+
+
 
 
 
@@ -190,39 +202,27 @@ with torch.no_grad():
         random_list = random.sample(new_list, max_search)  # get n random values from new list
         random_list += [ImageNcaption[i]]
 
-        for _, caption in random_list:
+        for image, _ in random_list:
 
 
 
-            positive_tensors = np.zeros((1, 300))
+            img1name = image
 
-        
+            cero = "0"*(12-len(img1name))
 
-            positive_words = np.array([])
+            name_file = "/COCO_val2014_"
 
-            input_tokens = caption.split()
+            root_dir = '/home/mcv/datasets/COCO/val2014'
 
-            for token in input_tokens:
+            gtImagePict = Image.open(root_dir +name_file+cero+ img1name+".jpg").convert('RGB')
 
-                if token.lower() in ft_model:
-
-                    positive_words = np.append(positive_words, ft_model[token.lower()])
-
-            positive_tensors[0] = np.mean(positive_words, axis=0)
-
-
-
-            positive_tensors = torch.from_numpy(positive_tensors)
-
-            
-
-            positive = positive_tensors.to(torch.float32).to(device)
+            positive = transform(gtImagePict).unsqueeze(0).to(device)
 
 
 
             # Forward + backward + optimize
 
-            image_val_o, text_val, _ = model(anchor, positive, positive)
+            text_val, image_val_o, _ = model(anchor, positive, positive)
 
     
 
@@ -238,9 +238,9 @@ with torch.no_grad():
 
         for best in list_dist:
 
-            capt_pred = ImageNcaption[best][1]
+            img_pred = ImageNcaption[best][0]
 
-            if capt_pred == gtCaption:
+            if img_pred == gtImage:
 
                 correct_pred += 1
 
