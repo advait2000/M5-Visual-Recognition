@@ -24,6 +24,8 @@ import numpy as np
 
 import math
 
+from transformers import BertTokenizer, BertModel
+
 from packages import config
 
 from text_image_network import TextToImage
@@ -103,6 +105,10 @@ opt = SGD(model.parameters(), lr=config.INIT_LR, momentum=0.9)
 
 triplet_loss_fn = nn.TripletMarginLoss(margin=1.0)
 
+# Initialize BERT model and tokenizer
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+bert_model = BertModel.from_pretrained('bert-base-uncased').to(device)
+
 # initialize a dictionary to store training history
 
 H = {
@@ -176,7 +182,9 @@ for e in range(0, config.EPOCHS):
 
         negative = negative.to(device)
 
-        anchor_embedding, positive_embedding, negative_embedding = model(anchor, positive, negative)
+        anchor_embedding = bert_model.encode(anchor, convert_to_tensor=True)
+        positive_embedding = bert_model.encode(positive, convert_to_tensor=True)
+        negative_embedding = bert_model.encode(negative, convert_to_tensor=True)
 
         # print("positive_embedding",positive_embedding)
 
@@ -230,8 +238,9 @@ for e in range(0, config.EPOCHS):
             negative = negative.to(device)
 
             # Forward + backward + optimize
-
-            anchor_embedding, positive_embedding, negative_embedding = model(anchor, positive, negative)
+            anchor_embedding = bert_model.encode(anchor, convert_to_tensor=True)
+            positive_embedding = bert_model.encode(positive, convert_to_tensor=True)
+            negative_embedding = bert_model.encode(negative, convert_to_tensor=True)
 
             # print("positive_embedding_val",positive_embedding)
 
