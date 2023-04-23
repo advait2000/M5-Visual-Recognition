@@ -313,13 +313,16 @@ class CustomTensorDatasetTriplet_Image2Text(Dataset):
 
 
     def __len__(self):
+
         #if self.type_data == "val":
+
         #    logging.info("val: "+str(int(len(self.ImageNcaption)*0.01)))		
+
         #    return int(len(self.ImageNcaption)*0.01)
 
-        logging.info("train: "+str(int(len(self.ImageNcaption)*0.01)))
+        logging.info("train: "+str(int(len(self.ImageNcaption)*0.0001)))
 
-        return int(len(self.ImageNcaption)*0.01)
+        return int(len(self.ImageNcaption)*0.0001)
 
 
 
@@ -385,61 +388,120 @@ class CustomTensorDatasetTriplet_Image2Text(Dataset):
 
 
 
+class CustomTensorDatasetTriplet_Text2Image(Dataset):
+
+    def __init__(self, root_dir, annFile, type_data, transforms=None):
+
+        self.root_dir = root_dir
+
+        self.transform = transforms
+
+        self.type_data = type_data
+
+
+
+        f = open(annFile)
+
+        captionJson = json.load(f)
+
+        f.close()
+
+
+
+        self.ImageNcaption = []
+
+        for caption in captionJson["annotations"]:
+
+            self.ImageNcaption.append([str(caption["image_id"]), str(caption["caption"])])
+
+
+
+    def __len__(self):
+
+        #if self.type_data == "val":
+
+        #    logging.info("val: "+str(int(len(self.ImageNcaption)*0.01)))		
+
+        #    return int(len(self.ImageNcaption)*0.01)
+
+        logging.info("train: "+str(int(len(self.ImageNcaption)*0.001)))
+
+        return int(len(self.ImageNcaption)*0.001)
+
+
+
+    def __getitem__(self, index):
+
+
+
+        anchor = self.ImageNcaption[index][1]
+
+
+
+        # Load the two images and the label
+
+        img1name = self.ImageNcaption[index][0]
+
+        cero = "0"*(12-len(img1name))
+
+
+
+        name_file = "/COCO_train2014_"
+
+        if self.type_data == "val":
+
+            name_file = "/COCO_val2014_"
+
+
+
+        positive = Image.open(self.root_dir +name_file+cero+ img1name+".jpg").convert('RGB')
+
+
+
+        # Transform
+
+        if self.transform is not None:
+
+            positive = self.transform(positive)
 
 
 
 
 
+        index_neg = index
+
+        while index_neg == index:
+
+            index_neg = random.choice(list(range(len(self.ImageNcaption))))
+
+        
+
+        negative_name = self.ImageNcaption[index_neg][0]
 
 
 
+        cero = "0"*(12-len(negative_name))
 
 
 
+        name_file = "/COCO_train2014_"
+
+        if self.type_data == "val":
+
+            name_file = "/COCO_val2014_"
 
 
 
+        negative = Image.open(self.root_dir +name_file+cero+ negative_name+".jpg").convert('RGB')
 
 
 
+        # Transform
+
+        if self.transform is not None:
+
+            negative = self.transform(negative)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return (anchor, positive, negative), torch.tensor([0], dtype=torch.float32)
